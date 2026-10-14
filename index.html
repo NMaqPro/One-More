@@ -308,7 +308,9 @@ body.calm .toast { transition: none; }
 .fbstatus.ok { color: #22c58b; }
 .fbstatus.err { color: var(--fail); }
 .fbstatus.ok, .fbstatus.err { }
-#fbfallback[hidden], #fbshare[hidden], #fbform[hidden], #fbmail[hidden] { display: none; }
+#fbfallback[hidden], #fbshare[hidden], #fbform[hidden], #fbmail[hidden], #fbformbig[hidden], #fbformhint[hidden] { display: none; }
+#fbformbig { text-decoration: none; display: block; text-align: center; }
+#feedback.formonly .fbrate, #feedback.formonly .fbscale, #feedback.formonly #fbtags, #feedback.formonly .fbfield, #feedback.formonly .fbstatus, #feedback.formonly #fbsend, #feedback.formonly #fbfallback { display: none; }
 a.ghost { text-decoration: none; display: inline-block; }
 #feedback { background: radial-gradient(100% 38% at 50% 0, rgba(255,77,141,.15), transparent 70%), rgba(18,15,31,.97); gap: 12px; }
 
@@ -544,7 +546,9 @@ body.calm #menu > *, body.calm #play, body.calm #again, body.calm #play::after, 
 
   <section class="screen" id="feedback" hidden>
     <h2 class="ctitle">FEEDBACK</h2>
-    <p class="tag">How is ONE MORE so far? Honest is best.</p>
+    <p class="tag" id="fbtag">How is ONE MORE so far? Honest is best.</p>
+    <a class="big" id="fbformbig" target="_blank" rel="noopener" hidden>OPEN FEEDBACK FORM</a>
+    <p class="hint" id="fbformhint" hidden>It takes about a minute. Your answers go straight to the person who made this game.</p>
     <div class="fbrate" id="fbrate" role="radiogroup" aria-label="Rating out of 5">
       <button type="button" role="radio" aria-checked="false" data-v="1">1</button><button type="button" role="radio" aria-checked="false" data-v="2">2</button><button type="button" role="radio" aria-checked="false" data-v="3">3</button><button type="button" role="radio" aria-checked="false" data-v="4">4</button><button type="button" role="radio" aria-checked="false" data-v="5">5</button>
     </div>
@@ -2466,7 +2470,7 @@ body.calm #menu > *, body.calm #play, body.calm #again, body.calm #play::after, 
 
   /* ---------- Feedback ---------- */
   var VERSION = 'friends test 1';
-  var FEEDBACK_URL = '';    /* optional backup: a Google Form or similar link */
+  var FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLScaw-S3WpZzV4lFmuGtTDFmBn-DGVPnERfR6BX7Xg_kHEBkjQ/viewform';    /* optional backup: a Google Form or similar link */
   var FEEDBACK_EMAIL = '';  /* optional backup: email address for the Email button */
   var fb = { rating: 0, tag: '', busy: false };
   $('ver').textContent = 'ONE MORE \u00b7 ' + VERSION;
@@ -2479,6 +2483,10 @@ body.calm #menu > *, body.calm #play, body.calm #again, body.calm #play::after, 
   $('fbmsg').addEventListener('input', fbClear);
   function openFeedback() {
     $('settings').hidden = true; $('feedback').hidden = false;
+    var formOnly = !(window.claude && typeof window.claude.use === 'function') && !!FEEDBACK_URL;
+    $('feedback').classList.toggle('formonly', formOnly);
+    $('fbformbig').hidden = !formOnly; $('fbformhint').hidden = !formOnly;
+    if (formOnly) { $('fbformbig').href = FEEDBACK_URL; $('fbtag').textContent = 'How is ONE MORE so far? Tell us in a short form.'; }
     fbStatus(''); $('fbfallback').hidden = true; $('fbsend').disabled = false; fbRender();
     $('fbmsg').scrollTop = 0;
   }
@@ -2494,7 +2502,9 @@ body.calm #menu > *, body.calm #play, body.calm #again, body.calm #play::after, 
   }
   function fbFallback(p) {
     var text = fbText(p);
-    fbStatus("Couldn't send it automatically. Share or copy it instead.", 'err');
+    fb.text = text;
+    if (FEEDBACK_URL) { fbCopy(' Tap Open form and paste it in.'); }
+    else fbStatus("Couldn't send it automatically. Share or copy it instead.", 'err');
     $('fbfallback').hidden = false;
     $('fbshare').hidden = !navigator.share;
     $('fbform').hidden = !FEEDBACK_URL; if (FEEDBACK_URL) $('fbform').href = FEEDBACK_URL;
@@ -2528,16 +2538,17 @@ body.calm #menu > *, body.calm #play, body.calm #again, body.calm #play::after, 
     } else pr = Promise.reject(new Error('nodb'));
     pr.then(function () { fb.busy = false; fbDone(); }, function () { fb.busy = false; $('fbsend').disabled = false; fbFallback(p); });
   }
-  function fbCopy() {
-    var text = fb.text || '';
-    function legacy() { var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); fbStatus('Copied. Paste it in a message to whoever shared the game.', 'ok'); } catch (e) { fbStatus('Copy failed. Select the text and copy it by hand.', 'err'); } document.body.removeChild(t); }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { fbStatus('Copied. Paste it in a message to whoever shared the game.', 'ok'); }, legacy);
+  function fbCopy(extra) {
+    var text = fb.text || '', note = typeof extra === 'string' ? extra : '';
+    var okMsg = 'Copied.' + (note || ' Paste it in a message to whoever shared the game.');
+    function legacy() { var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); fbStatus(okMsg, 'ok'); } catch (e) { fbStatus('Copy failed. Select your text and copy it by hand.', 'err'); } document.body.removeChild(t); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { fbStatus(okMsg, 'ok'); }, legacy);
     else legacy();
   }
   $('sFeedback').addEventListener('click', openFeedback);
   $('fbback').addEventListener('click', closeFeedback);
   $('fbsend').addEventListener('click', sendFeedback);
-  $('fbcopy').addEventListener('click', fbCopy);
+  $('fbcopy').addEventListener('click', function () { fbCopy(); });
   $('fbshare').addEventListener('click', function () { if (navigator.share) navigator.share({ title: 'ONE MORE feedback', text: fb.text || '' }).catch(function () {}); });
   $('fbrate').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; fb.rating = +b.getAttribute('data-v'); fbRender(); fbClear(); });
   $('fbtags').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var t = b.getAttribute('data-t'); fb.tag = fb.tag === t ? '' : t; fbRender(); fbClear(); });
